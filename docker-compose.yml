@@ -1,0 +1,92 @@
+# github.com/yarrstack/yarrstack
+#
+# services:
+# - ngnix reverse proxy
+# - radarr
+# - sonarr
+# - jackett
+# - overseerr
+# - deluge
+#
+# host:
+# - ufw + wireguard vpn
+# - mounted storage
+
+version: '3.9'
+
+x-environment:
+  &default-environment
+  - PUID=1000
+  - GUID=1000
+  - TZ=$TIMEZONE
+
+services:
+
+  gateway:
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./data/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./data/nginx/certs:/etc/ssl:ro
+    ports:
+      - 80:80
+      - 443:443
+    depends_on:
+      - deluge
+      - sonarr
+      - radarr
+      - jackett
+      - overseerr
+
+  deluge:
+    image: linuxserver/deluge:latest
+    restart: unless-stopped
+    environment: *default-environment
+    volumes:
+      - ./data/deluge:/config
+      - $STORAGE_PATH/downloads:/downloads
+    ports:
+      - $BT_PORT:$BT_PORT
+      - $BT_PORT:$BT_PORT/udp
+
+  radarr:
+    image: linuxserver/radarr:latest
+    restart: unless-stopped
+    environment: *default-environment
+    volumes:
+      - ./data/radarr:/config
+      - $STORAGE_PATH/media/movies:/movies
+      - $STORAGE_PATH/downloads:/downloads
+    depends_on:
+      - jackett
+      - deluge
+
+  sonarr:
+    image: linuxserver/sonarr:latest
+    restart: unless-stopped
+    environment: *default-environment
+    volumes:
+      - ./data/sonarr:/config
+      - $STORAGE_PATH/media/shows:/tv
+      - $STORAGE_PATH/downloads:/downloads
+    depends_on:
+      - jackett
+      - deluge
+
+  jackett:
+    image: linuxserver/jackett:latest
+    restart: unless-stopped
+    environment: *default-environment
+    volumes:
+      - ./data/jackett:/config
+      - $STORAGE_PATH/downloads:/downloads
+
+  overseerr:
+    image: linuxserver/overseerr:latest
+    restart: unless-stopped
+    environment: *default-environment
+    volumes:
+      - ./data/overseerr:/config
+    depends_on:
+      - sonarr
+      - radarr
